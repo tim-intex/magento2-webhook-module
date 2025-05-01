@@ -7,10 +7,12 @@ use Magento\Framework\App\Helper\AbstractHelper;
 class DataMap extends AbstractHelper
 {
 
-    const KLAVIYO_API_KEY = "PUBLIC_API_KEY_GOES_HERE";
+    const KLAVIYO_API_KEY = "PRIVATE_API_KEY_GOES_HERE";
+    const PLACED_ORDER = 'Placed Order Webhook';
+    const REVISION = '2025-04-15';
+    
     const USER_AGENT = 'Klaviyo/1.0';
     const KLAVIYO_HOST = 'https://a.klaviyo.com/';
-    const PLACED_ORDER = 'Placed Order Webhook';
     /**
      * @param string $order
      * @return bool|string
@@ -130,7 +132,7 @@ class DataMap extends AbstractHelper
           ]
         ];
 
-        return $this->make_request("client/events/", json_encode($body));
+        return $this->make_request("api/events/", json_encode($body));
     }
 
     protected function make_request($path, $body)
@@ -139,7 +141,8 @@ class DataMap extends AbstractHelper
             'http' => [
                 'header' => "content-type: application/json",
                 'header' => "accept: application/json",
-                'header' => "revision: 2024-07-15",
+                'header' => "Authorization: Klaviyo-API-Key {$KLAVIYO_API_KEY}",
+                'header' => "revision: {$REVISION}",
                 'header' => "User-Agent: {$USER_AGENT}",
                 'method' => 'POST',
                 'content' => {"data": $body},
@@ -147,7 +150,7 @@ class DataMap extends AbstractHelper
         ];
 
         $context = stream_context_create($options);
-        $url = self::KLAVIYO_HOST . $path . "?company_id=" . self::KLAVIYO_API_KEY;
+        $url = self::KLAVIYO_HOST . $path;
         $response = file_get_contents($url, false, $context);
     }
 }
