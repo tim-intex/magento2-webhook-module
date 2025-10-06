@@ -12,11 +12,14 @@ class DataMap extends AbstractHelper
     const USER_AGENT = 'Webhook/1.0';
     
     protected $scopeConfig;
+    protected $_logger;
     public function __construct(
-        Context $context
+        Context $context,
+        \Psr\Log\LoggerInterface $logger
     ) {
         parent::__construct($context);
         $this->scopeConfig = $context->getScopeConfig();
+        $this->_logger = $logger;
     }
 
     /**
@@ -64,7 +67,7 @@ class DataMap extends AbstractHelper
      * Helper function that takes the order object and returns a mapped out array
      * @return array
      */
-    private function mapOrderPayloadObject($order)
+    public function mapOrderPayloadObject($order)
     {
         $customer_identifiers = [];
         $customer_properties = [];
@@ -111,7 +114,7 @@ class DataMap extends AbstractHelper
      * Helper function that takes the shipment object and returns a mapped out array
      * @return array
      */
-    private function mapShipmentPayloadObject($shipment)
+    public function mapShipmentPayloadObject($shipment)
     {
         $customer_identifiers = [];
         $customer_properties = [];
@@ -243,6 +246,13 @@ class DataMap extends AbstractHelper
 
     protected function make_request($path, $body)
     {
+        $url = $this->getHost() . $path;
+        
+        // DEBUG: Log the request details
+        $this->_logger->info('Webhook Request - URL: ' . $url);
+        $this->_logger->info('Webhook Request - Body: ' . $body);
+        $this->_logger->info('Webhook Request - API Key: ' . substr($this->getApiKey(), 0, 8) . '...');
+        
         $options = [
             'http' => [
                 'header' => "content-type: application/json\r\n" .
@@ -256,8 +266,19 @@ class DataMap extends AbstractHelper
         ];
 
         $context = stream_context_create($options);
-        $url = $this->getHost() . $path;
-        $response = file_get_contents($url, false, $context);
+        
+        // Add error handling for the request
+        $response = @file_get_contents($url, false, $context);
+        
+        if ($response === false) {
+            $error = error_get_last();
+            $this->_logger->error('Webhook Request Failed - Error: ' . ($error['message'] ?? 'Unknown error'));
+            return false;
+        }
+        
+        // DEBUG: Log response details
+        $this->_logger->info('Webhook Response - Status: ' . (isset($http_response_header) ? $http_response_header[0] : 'No status'));
+        $this->_logger->info('Webhook Response - Body: ' . $response);
         
         return $response;
     }
@@ -297,7 +318,7 @@ class DataMap extends AbstractHelper
         );
     }
 
-    protected function getOrderEventName()
+    public function getOrderEventName()
     {
         return $this->scopeConfig->getValue(
             'webhook_settings/events/order_event_name',
@@ -305,7 +326,7 @@ class DataMap extends AbstractHelper
         );
     }
 
-    protected function getShipmentEventName()
+    public function getShipmentEventName()
     {
         return $this->scopeConfig->getValue(
             'webhook_settings/events/shipment_event_name',
