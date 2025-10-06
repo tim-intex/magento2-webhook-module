@@ -9,6 +9,6 @@ use Magento\Framework\Component\ComponentRegistrar;
 
 ComponentRegistrar::register(
     ComponentRegistrar::MODULE,
-    'Klaviyo_Webhook',
+    'Webhook_Webhook',
     __DIR__
 );

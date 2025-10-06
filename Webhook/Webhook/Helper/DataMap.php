@@ -1,27 +1,27 @@
 <?php
 
-namespace Klaviyo\Webhook\Helper;
+namespace Webhook\Webhook\Helper;
 
 use Magento\Framework\App\Helper\AbstractHelper;
 
 class DataMap extends AbstractHelper
 {
 
-    const KLAVIYO_API_KEY = "PRIVATE_API_KEY_GOES_HERE";
+    const WEBHOOK_API_KEY = "PRIVATE_API_KEY_GOES_HERE";
     const PLACED_ORDER = 'Placed Order Webhook';
     const REVISION = '2025-04-15';
     
-    const USER_AGENT = 'Klaviyo/1.0';
-    const KLAVIYO_HOST = 'https://a.klaviyo.com/';
+    const USER_AGENT = 'Webhook/1.0';
+    const WEBHOOK_HOST = 'https://a.klaviyo.com/';
     /**
      * @param string $order
      * @return bool|string
      */
 
-    public function sendOrderToKlaviyo($order)
+    public function sendOrderToWebhook($order)
     {
         $payload = $this->mapPayloadObject($order);
-        return $this->klaviyoTrackEvent(self::PLACED_ORDER, $payload['customer_identifiers'], $payload['customer_properties'], $payload['properties'], time());
+        return $this->webhookTrackEvent(self::PLACED_ORDER, $payload['customer_identifiers'], $payload['customer_properties'], $payload['properties'], time());
     }
 
     /**
@@ -92,7 +92,7 @@ class DataMap extends AbstractHelper
         return $address;
     }
 
-    public function klaviyoTrackEvent($event, $customer_identifiers = array(), $customer_properties = array(), $properties = array(), $timestamp = NULL)
+    public function webhookTrackEvent($event, $customer_identifiers = array(), $customer_properties = array(), $properties = array(), $timestamp = NULL)
     {
         if ((!array_key_exists('email', $customer_identifiers) || empty($customer_identifiers['email']))
             && (!array_key_exists('phone', $customer_identifiers) || empty($customer_identifiers['phone']))
@@ -141,16 +141,16 @@ class DataMap extends AbstractHelper
             'http' => [
                 'header' => "content-type: application/json",
                 'header' => "accept: application/json",
-                'header' => "Authorization: Klaviyo-API-Key {$KLAVIYO_API_KEY}",
-                'header' => "revision: {$REVISION}",
-                'header' => "User-Agent: {$USER_AGENT}",
+                'header' => "Authorization: Webhook-API-Key " . self::WEBHOOK_API_KEY,
+                'header' => "revision: " . self::REVISION,
+                'header' => "User-Agent: " . self::USER_AGENT,
                 'method' => 'POST',
-                'content' => {"data": $body},
+                'content' => $body,
             ],
         ];
 
         $context = stream_context_create($options);
-        $url = self::KLAVIYO_HOST . $path;
+        $url = self::WEBHOOK_HOST . $path;
         $response = file_get_contents($url, false, $context);
     }
 }

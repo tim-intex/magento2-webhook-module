@@ -1,8 +1,8 @@
 <?php
 
-namespace Klaviyo\Webhook\Observer;
+namespace Webhook\Webhook\Observer;
 
-use Klaviyo\Webhook\Helper\DataMap;
+use Webhook\Webhook\Helper\DataMap;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use \Psr\Log\LoggerInterface;
@@ -22,10 +22,10 @@ class ProcessPlacedOrder implements ObserverInterface
     public function execute(Observer $observer)
     {
         $order = $observer->getEvent()->getOrder();
-        $result = $this->dataHelper->sendOrderToKlaviyo($order);
+        $result = $this->dataHelper->sendOrderToWebhook($order);
         if (!$result) {
-            $this->logger->info('Unable to send event to Klaviyo');
+            $this->logger->info('Unable to send event to Webhook');
         }
-        $this->logger->info('Event Successfully sent to Klaviyo');
+        $this->logger->info('Event Successfully sent to Webhook');
     }
 }
