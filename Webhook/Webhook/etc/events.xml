@@ -10,4 +10,7 @@
    <event name="checkout_onepage_controller_success_action">
        <observer name="process_order" instance="Webhook\Webhook\Observer\ProcessPlacedOrder" />
    </event>
+   <event name="sales_order_shipment_save_after">
+       <observer name="process_shipment" instance="Webhook\Webhook\Observer\ProcessShipment" />
+   </event>
 </config>

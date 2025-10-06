@@ -3,32 +3,68 @@
 namespace Webhook\Webhook\Helper;
 
 use Magento\Framework\App\Helper\AbstractHelper;
+use Magento\Framework\App\Helper\Context;
+use Magento\Store\Model\ScopeInterface;
 
 class DataMap extends AbstractHelper
 {
-
-    const WEBHOOK_API_KEY = "PRIVATE_API_KEY_GOES_HERE";
-    const PLACED_ORDER = 'Placed Order Webhook';
-    const REVISION = '2025-04-15';
     
     const USER_AGENT = 'Webhook/1.0';
-    const WEBHOOK_HOST = 'https://a.klaviyo.com/';
+    
+    protected $scopeConfig;
+    public function __construct(
+        Context $context
+    ) {
+        parent::__construct($context);
+        $this->scopeConfig = $context->getScopeConfig();
+    }
+
     /**
+     * Generic method to send webhook events
+     * @param string $eventType
+     * @param mixed $dataObject
+     * @return bool|string
+     */
+    public function sendWebhookEvent($eventType, $dataObject)
+    {
+        if (!$this->isEnabled()) {
+            return 'Webhooks are disabled';
+        }
+        
+        if ($eventType === 'order') {
+            if (!$this->isOrderEnabled()) {
+                return 'Order webhook is disabled';
+            }
+            $eventName = $this->getOrderEventName();
+            $payload = $this->mapOrderPayloadObject($dataObject);
+        } elseif ($eventType === 'shipment') {
+            if (!$this->isShipmentEnabled()) {
+                return 'Shipment webhook is disabled';
+            }
+            $eventName = $this->getShipmentEventName();
+            $payload = $this->mapShipmentPayloadObject($dataObject);
+        } else {
+            return 'Unsupported event type';
+        }
+        
+        return $this->webhookTrackEvent($eventName, $payload['customer_identifiers'], $payload['customer_properties'], $payload['properties'], time());
+    }
+
+    /**
+     * Legacy method for backward compatibility
      * @param string $order
      * @return bool|string
      */
-
     public function sendOrderToWebhook($order)
     {
-        $payload = $this->mapPayloadObject($order);
-        return $this->webhookTrackEvent(self::PLACED_ORDER, $payload['customer_identifiers'], $payload['customer_properties'], $payload['properties'], time());
+        return $this->sendWebhookEvent('order', $order);
     }
 
     /**
      * Helper function that takes the order object and returns a mapped out array
      * @return array
      */
-    private function mapPayloadObject($order)
+    private function mapOrderPayloadObject($order)
     {
         $customer_identifiers = [];
         $customer_properties = [];
@@ -67,6 +103,76 @@ class DataMap extends AbstractHelper
         $properties['BillingAddress'] = $this->mapAddress($billing);
         $properties['ShippingAddress'] = $this->mapAddress($shipping);
         $properties['Items'] = $items;
+
+        return ['customer_identifiers' => $customer_identifiers, 'customer_properties' => $customer_properties, 'properties' => $properties];
+    }
+
+    /**
+     * Helper function that takes the shipment object and returns a mapped out array
+     * @return array
+     */
+    private function mapShipmentPayloadObject($shipment)
+    {
+        $customer_identifiers = [];
+        $customer_properties = [];
+        $properties = [];
+        $items = [];
+        $tracks = [];
+
+        $order = $shipment->getOrder();
+        $shippingAddress = $order->getShippingAddress();
+
+        // Map shipment items
+        foreach ($shipment->getAllItems() as $item) {
+            $orderItem = $item->getOrderItem();
+            $items[] = [
+                'ProductId' => $item->getProductId() ? $item->getProductId() : '',
+                'SKU' => $item->getSku() ? $item->getSku() : '',
+                'ProductName' => $item->getName() ? $item->getName() : '',
+                'Quantity' => $item->getQty() ? (int)$item->getQty() : '',
+                'OrderItemId' => $orderItem->getId() ? $orderItem->getId() : '',
+                'ItemPrice' => $orderItem->getPrice() ? (float)$orderItem->getPrice() : ''
+            ];
+        }
+
+        // Map tracking information
+        foreach ($shipment->getAllTracks() as $track) {
+            $tracks[] = [
+                'CarrierCode' => $track->getCarrierCode() ? $track->getCarrierCode() : '',
+                'Title' => $track->getTitle() ? $track->getTitle() : '',
+                'TrackNumber' => $track->getTrackNumber() ? $track->getTrackNumber() : '',
+                'CreatedAt' => $track->getCreatedAt() ? $track->getCreatedAt() : ''
+            ];
+        }
+
+        // Customer identifiers
+        if ($order->getCustomerEmail()) $customer_identifiers['email'] = $order->getCustomerEmail();
+        if ($order->getCustomerFirstname()) $customer_identifiers['first_name'] = $order->getCustomerFirstname();
+        if ($order->getCustomerLastname()) $customer_identifiers['last_name'] = $order->getCustomerLastname();
+        if ($shippingAddress && $shippingAddress->getTelephone()) $customer_identifiers['phone_number'] = $shippingAddress->getTelephone();
+
+        // Customer properties
+        if ($shippingAddress) {
+            if ($shippingAddress->getCity()) $customer_properties['city'] = $shippingAddress->getCity();
+            if ($shippingAddress->getData('street')) $customer_properties['address1'] = $shippingAddress->getData('street');
+            if ($shippingAddress->getPostcode()) $customer_properties['zip'] = $shippingAddress->getPostcode();
+            if ($shippingAddress->getRegion()) $customer_properties['region'] = $shippingAddress->getRegion();
+            if ($shippingAddress->getCountryId()) $customer_properties['country'] = $shippingAddress->getCountryId();
+        }
+
+        // Shipment properties
+        $properties['ShipmentId'] = $shipment->getId() ? $shipment->getId() : '';
+        $properties['ShipmentIncrementId'] = $shipment->getIncrementId() ? $shipment->getIncrementId() : '';
+        $properties['OrderId'] = $order->getId() ? $order->getId() : '';
+        $properties['OrderIncrementId'] = $order->getIncrementId() ? $order->getIncrementId() : '';
+        $properties['ShipmentCreatedAt'] = $shipment->getCreatedAt() ? $shipment->getCreatedAt() : '';
+        $properties['ShippingMethod'] = $order->getShippingMethod() ? $order->getShippingMethod() : '';
+        $properties['Items'] = $items;
+        $properties['Tracks'] = $tracks;
+        
+        if ($shippingAddress) {
+            $properties['ShippingAddress'] = $this->mapAddress($shippingAddress);
+        }
 
         return ['customer_identifiers' => $customer_identifiers, 'customer_properties' => $customer_properties, 'properties' => $properties];
     }
@@ -139,18 +245,87 @@ class DataMap extends AbstractHelper
     {
         $options = [
             'http' => [
-                'header' => "content-type: application/json",
-                'header' => "accept: application/json",
-                'header' => "Authorization: Webhook-API-Key " . self::WEBHOOK_API_KEY,
-                'header' => "revision: " . self::REVISION,
-                'header' => "User-Agent: " . self::USER_AGENT,
+                'header' => "content-type: application/json\r\n" .
+                           "accept: application/json\r\n" .
+                           "Authorization: Webhook-API-Key " . $this->getApiKey() . "\r\n" .
+                           "revision: " . $this->getRevision() . "\r\n" .
+                           "User-Agent: " . self::USER_AGENT . "\r\n",
                 'method' => 'POST',
                 'content' => $body,
             ],
         ];
 
         $context = stream_context_create($options);
-        $url = self::WEBHOOK_HOST . $path;
+        $url = $this->getHost() . $path;
         $response = file_get_contents($url, false, $context);
+        
+        return $response;
+    }
+
+    /**
+     * Configuration helper methods
+     */
+    protected function isEnabled()
+    {
+        return $this->scopeConfig->isSetFlag(
+            'webhook_settings/general/enabled',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    protected function getApiKey()
+    {
+        return $this->scopeConfig->getValue(
+            'webhook_settings/general/api_key',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    protected function getHost()
+    {
+        return $this->scopeConfig->getValue(
+            'webhook_settings/general/host',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    protected function getRevision()
+    {
+        return $this->scopeConfig->getValue(
+            'webhook_settings/general/revision',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    protected function getOrderEventName()
+    {
+        return $this->scopeConfig->getValue(
+            'webhook_settings/events/order_event_name',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    protected function getShipmentEventName()
+    {
+        return $this->scopeConfig->getValue(
+            'webhook_settings/events/shipment_event_name',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    protected function isOrderEnabled()
+    {
+        return $this->scopeConfig->isSetFlag(
+            'webhook_settings/events/order_enabled',
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    protected function isShipmentEnabled()
+    {
+        return $this->scopeConfig->isSetFlag(
+            'webhook_settings/events/shipment_enabled',
+            ScopeInterface::SCOPE_STORE
+        );
     }
 }

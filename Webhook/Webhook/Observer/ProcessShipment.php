@@ -7,7 +7,7 @@ use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use \Psr\Log\LoggerInterface;
 
-class ProcessPlacedOrder implements ObserverInterface
+class ProcessShipment implements ObserverInterface
 {
 
     private $logger;
@@ -21,11 +21,11 @@ class ProcessPlacedOrder implements ObserverInterface
 
     public function execute(Observer $observer)
     {
-        $order = $observer->getEvent()->getOrder();
-        $result = $this->dataHelper->sendWebhookEvent('order', $order);
+        $shipment = $observer->getEvent()->getShipment();
+        $result = $this->dataHelper->sendWebhookEvent('shipment', $shipment);
         if (!$result) {
-            $this->logger->info('Unable to send order event to Webhook');
+            $this->logger->info('Unable to send shipment event to Webhook');
         }
-        $this->logger->info('Order event Successfully sent to Webhook');
+        $this->logger->info('Shipment event Successfully sent to Webhook');
     }
 }
