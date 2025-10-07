@@ -11,7 +11,7 @@
             <general>
                 <enabled>0</enabled>
                 <api_key></api_key>
-                <host>https://a.klaviyo.com/</host>
+                <host>https://your-webhook-host.com/</host>
                 <revision>2025-04-15</revision>
             </general>
             <events>

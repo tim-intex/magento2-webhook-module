@@ -20,6 +20,9 @@ class DataMap extends AbstractHelper
         parent::__construct($context);
         $this->scopeConfig = $context->getScopeConfig();
         $this->_logger = $logger;
+        
+        // DEBUG: Log when DataMap is instantiated
+        $this->_logger->debug('DI_COMPILE_DEBUG: DataMap helper instantiated - This might be triggering API key validation during di:compile');
     }
 
     /**
@@ -296,14 +299,28 @@ class DataMap extends AbstractHelper
 
     protected function getApiKey()
     {
-        return $this->scopeConfig->getValue(
+        // DEBUG: Log when API key is being accessed
+        $this->_logger->debug('DI_COMPILE_DEBUG: getApiKey() method called - This might be causing the API key requirement during di:compile');
+        
+        $apiKey = $this->scopeConfig->getValue(
             'webhook_settings/general/api_key',
             ScopeInterface::SCOPE_STORE
         );
+        
+        // DEBUG: Log the API key status
+        $this->_logger->debug('DI_COMPILE_DEBUG: API Key value is ' . (empty($apiKey) ? 'EMPTY' : 'SET'));
+        
+        return $apiKey;
     }
 
     protected function getHost()
     {
+        // DEBUG: Log when host is being accessed
+        $this->_logger->debug('DI_COMPILE_DEBUG: getHost() method called - Current host: ' . $this->scopeConfig->getValue(
+            'webhook_settings/general/host',
+            ScopeInterface::SCOPE_STORE
+        ));
+        
         return $this->scopeConfig->getValue(
             'webhook_settings/general/host',
             ScopeInterface::SCOPE_STORE
